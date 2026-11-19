@@ -309,8 +309,13 @@ class FinderSync: FIFinderSync {
             let requested = key.hasPrefix("term:") ? String(key.dropFirst(5)) : cfg.defaultTerminal
             openTerminal(dir, bundleID: requested)
         } else if key == "trash" {
-            RKActions.trash(selected)
-            rklog("trash requested count=\(selected.count)")
+            let paths = selected.map(\.path)
+            if RKActions.writeHostRequest("trash", paths: paths) {
+                let ok = NSWorkspace.shared.open(URL(string: "rightkit://trash")!)
+                rklog("trash requested count=\(paths.count) open=\(ok)")
+            } else {
+                rklog("trash: request write failed")
+            }
         } else if key == "settings" {
             let ok = NSWorkspace.shared.open(URL(string: "rightkit://settings")!)
             rklog("settings open=\(ok)")
