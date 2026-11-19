@@ -214,7 +214,7 @@ enum RKActions {
     }
 
     @discardableResult
-    static func send(_ urls: [URL], to: dir: URL, move: Bool) -> (Int, [String]) {
+    static func send(_ urls: [URL], to dir: URL, move: Bool) -> (Int, [String]) {
         let fm = FileManager.default
         var done = 0
         var errors: [String] = []
