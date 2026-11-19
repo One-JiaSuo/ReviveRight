@@ -214,7 +214,7 @@ enum RKActions {
     }
 
     @discardableResult
-    static func send(_ urls: [URL], to dir: URL, move: Bool) -> (Int, [String]) {
+    static func send(_ urls: [URL], to: dir: URL, move: Bool) -> (Int, [String]) {
         let fm = FileManager.default
         var done = 0
         var errors: [String] = []
@@ -243,14 +243,4 @@ enum RKActions {
         return (try? data.write(to: url, options: .atomic)) != nil
     }
 
-    static func trash(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
-        NSWorkspace.shared.recycle(urls) { newURLs, error in
-            if let error = error {
-                rklog("trash failed: \(error.localizedDescription)")
-            } else {
-                rklog("trashed \(newURLs.count) item(s)")
-            }
-        }
-    }
 }
