@@ -142,263 +142,10 @@ struct SettingsView: View {
 
                 group("维护") {
                     HStack {
-                        Button {
-                            FIFinderSyncController.showExtensionManagementInterface()
-                        } label: {
-                            Label("管理 Finder 扩展…", systemImage: "puzzlepiece.extension")
-                        }
-                        Button {
-                            NSWorkspace.shared.open(RKConfig.supportDirectory)
-                        } label: {
-                            Label("打开配置文件夹", systemImage: "folder")
-                        }
-                        Button {
-                            let log = RKConfig.supportDirectory.appendingPathComponent("ext.log")
-                            if FileManager.default.fileExists(atPath: log.path) {
-                                NSWorkspace.shared.open(log)
-                            }
-                        } label: {
-                            Label("打开扩展日志", systemImage: "doc.text")
-                        }
-                        Button {
-                            onShowOnboarding()
-                        } label: {
-                            Label("查看新手指引", systemImage: "lightbulb")
-                        }
-                    }
-                    Text(extensionStatusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("若右键菜单未出现：系统设置 → 通用 → 登录项与扩展 → 文件提供程序 / 访达扩展，启用“右键复活扩展”。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .defaultScrollAnchor(.top)
-        .frame(width: 620, height: 780)
-    }
-
-    private var extensionStatusText: String {
-        FIFinderSyncController.isExtensionEnabled ? "扩展状态：已启用" : "扩展状态：未启用"
-    }
-
-    private func addDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "添加"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        var copy = store.config
-        copy.commonDirs.append(RKDirectory(name: url.lastPathComponent, path: url.path))
-        store.config = copy
-        copy.save()
-    }
-
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            VStack(alignment: .leading, spacing: 6) {
-                content()
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
-        }
-    }
-}
-
-struct FileInfoItem: Identifiable {
-    let id = UUID()
-    let url: URL
-    let name: String
-    let path: String
-    let kind: String
-    let size: Int64
-    let created: Date?
-    let modified: Date?
-    let permissions: String
-    let owner: String
-    let locked: Bool
-    let extensionHidden: Bool
-    let hidden: Bool
-
-    init(_ url: URL) {
-        let attrs = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
-        let type = attrs[.type] as? FileAttributeType
-        self.url = url
-        name = url.lastPathComponent
-        path = url.path
-        if type == .typeDirectory {
-            kind = "文件夹"
-        } else if url.pathExtension.isEmpty {
-            kind = "文件"
-        } else {
-            kind = "\(url.pathExtension.uppercased()) 文件"
-        }
-        size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-        created = attrs[.creationDate] as? Date
-        modified = attrs[.modificationDate] as? Date
-        permissions = (attrs[.posixPermissions] as? NSNumber)
-            .map { String($0.intValue, radix: 8) } ?? "-"
-        owner = attrs[.ownerAccountName] as? String ?? "-"
-        locked = (attrs[.immutable] as? Bool) ?? false
-        extensionHidden = (attrs[.extensionHidden] as? Bool) ?? false
-        hidden = (try? url.resourceValues(forKeys: [.isHiddenKey]))?.isHidden ?? false
-    }
-}
-
-struct FileInfoView: View {
-    let items: [FileInfoItem]
-
-    private static let sizeFormatter: ByteCountFormatter = {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter
-    }()
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        return formatter
-    }()
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if items.count == 1, let item = items.first {
-                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 9) {
-                        field("名称", item.name)
-                        field("路径", item.path)
-                        field("种类", item.kind)
-                        field("大小", Self.sizeFormatter.string(fromByteCount: item.size))
-                        field("创建时间", item.created.map { Self.dateFormatter.string(from: $0) } ?? "-")
-                        field("修改时间", item.modified.map { Self.dateFormatter.string(from: $0) } ?? "-")
-                        field("权限", item.permissions)
-                        field("所有者", item.owner)
-                        field("锁定", item.locked ? "是" : "否")
-                        field("隐藏", item.hidden ? "是" : "否")
-                        field("扩展名隐藏", item.extensionHidden ? "是" : "否")
-                    }
-                } else {
-                    Text("\(items.count) 个项目，共 \(Self.sizeFormatter.string(fromByteCount: items.reduce(0) { $0 + $1.size }))")
-                        .font(.headline)
-                    Divider()
-                    ForEach(items) { item in
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
-                                    .resizable()
-                                    .frame(width: 16, height: 16)
-                                Text(item.name)
-                                Spacer()
-                                Text(item.kind == "文件夹" ? "-" : Self.sizeFormatter.string(fromByteCount: item.size))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(item.path)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(width: 580, height: 520)
-    }
-
-    private func field(_ label: String, _ value: String) -> some View {
-        GridRow(alignment: .firstTextBaseline) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .gridColumnAlignment(.trailing)
-            Text(value)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
-struct OnboardingView: View {
-    var onFinish: () -> Void
-    var onOpenSettings: () -> Void
-
-    @State private var extensionEnabled = FIFinderSyncController.isExtensionEnabled
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 16) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 64, height: 64)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("右键复活")
-                        .font(.system(size: 22, weight: .bold))
-                    Text("给 Finder 右键菜单加上你常用的动作")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 12) {
-                stepHeader(1, "启用 Finder 扩展")
-                Text("第一次使用需要在系统设置中启用「右键复活扩展」。")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 34)
-                HStack(spacing: 12) {
-                    Button("启用扩展…") {
-                        FIFinderSyncController.showExtensionManagementInterface()
-                    }
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(extensionEnabled ? Color.green : Color.secondary.opacity(0.5))
-                            .frame(width: 7, height: 7)
-                        Text(extensionEnabled ? "扩展已启用" : "扩展未启用")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.leading, 34)
-
-                stepHeader(2, "在 Finder 中试用")
-                Text("选中文件或在空白处右键，就能看到拷贝路径、新建文件、发送到、在终端中打开等菜单项。")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 34)
-
-                stepHeader(3, "按需定制")
-                Text("点菜单栏图标 → 打开设置…，可以开关菜单项、勾选新建模板、维护常用目录和默认终端。")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 34)
-            }
-
-            Text("小提示：若菜单栏图标被刘海挡住，也可以在 Finder 右键菜单底部打开「右键复活设置…」。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 0)
-
-            HStack {
-                Button("打开设置…") { onOpenSettings() }
-                Spacer()
-                Button("开始使用") { onFinish() }
-                    .keyboardShortcut(.defaultAction)
+                        Button("打开设置…") { onOpenSettings() }
+                        Spacer()
+                        Button("开始使用") { onFinish() }
+                            .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
@@ -469,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case "info": openInfo()
             case "airdrop": performAirDrop()
             case "terminal": performTerminalOpen()
+            case "trash": performTrash()
             default: openSettings()
             }
             return
@@ -510,6 +258,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let service = NSSharingService(named: .sendViaAirDrop) else { return }
         NSApp.activate(ignoringOtherApps: true)
         service.perform(withItems: urls)
+    }
+
+    private func performTrash() {
+        let urls = readHostRequest("trash").filter {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+        guard !urls.isEmpty else {
+            NSLog("trash: nothing to remove")
+            return
+        }
+        NSWorkspace.shared.recycle(urls) { _, error in
+            if let error {
+                NSLog("trash failed: \(error.localizedDescription)")
+            } else {
+                NSLog("trashed \(urls.count) item(s)")
+            }
+        }
     }
 
     private func performTerminalOpen() {
